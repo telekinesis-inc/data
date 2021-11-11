@@ -47,7 +47,8 @@ class Storage:
             value._block_gc = True
         hsh = self._hash((self._root+'/'+key).encode())
 
-        old_user_metadata = ((not clear and await self._get_all_metadata(key, branch)) or {}).get('user_metadata') or {}
+        old_all_metadata = await self._get_all_metadata(key, branch)
+        old_user_metadata = ((not clear and (old_all_metadata or {})) or {}).get('user_metadata') or {}
         combined_user_metadata = old_user_metadata.copy()
         combined_user_metadata.update(metadata or {})
 
@@ -59,14 +60,17 @@ class Storage:
             'timestamp': time.time()
         }
         
-        encoded_data = bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(value))
-        value_hsh = self._hash(encoded_data)
-        path_data = os.path.join(self._path, 'data', value_hsh)
-        if not os.path.exists(path_data):
-            with open(path_data+'_', 'wb') as f:
-                f.write(encoded_data)
-            os.rename(path_data+'_', path_data)
-        all_metadata['data'] = value_hsh
+        if value is not None or clear or not old_all_metadata:
+            encoded_data = bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(value))
+            value_hsh = self._hash(encoded_data)
+            path_data = os.path.join(self._path, 'data', value_hsh)
+            if not os.path.exists(path_data):
+                with open(path_data+'_', 'wb') as f:
+                    f.write(encoded_data)
+                os.rename(path_data+'_', path_data)
+            all_metadata['data'] = value_hsh
+        else:
+            all_metadata['data'] = old_all_metadata['data']
 
         with open(path_meta + '_', 'w') as f:
             ujson.dump(all_metadata, f, escape_forward_slashes=False)
