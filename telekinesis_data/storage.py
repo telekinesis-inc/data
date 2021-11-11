@@ -21,7 +21,7 @@ class Storage:
             os.makedirs(path+'/data')
             os.makedirs(path+'/meta')
         
-        root_path = path+'/meta/'+self._hash(root.encode())
+        root_path = path+'/meta/'+self._hash(self._root.encode())
         if not os.path.exists(root_path):
             os.makedirs(root_path)
 
