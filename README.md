@@ -1,2 +1,2 @@
 # data
-Hierarchical, distributed, versioned and metadata querriable database
+Hierarchical, distributed, versioned and metadata queryable database
