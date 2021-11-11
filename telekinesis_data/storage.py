@@ -20,6 +20,10 @@ class Storage:
         if not os.path.exists(path+'/data'):
             os.makedirs(path+'/data')
             os.makedirs(path+'/meta')
+        
+        root_path = path+'/meta/'+self._hash(root.encode())
+        if not os.path.exists(root_path):
+            os.makedirs(root_path)
 
     async def get_metadata(self, key, branch=None, timestamp=None):
         return (await self._get_all_metadata(key, branch, timestamp)).get('user_metadata')
@@ -40,6 +44,15 @@ class Storage:
 
     async def get(self, key, default=None, branch=None, timestamp=None):
         return (await self.get_tuple(key, default, branch, timestamp))[1]
+
+    async def get_child(self, root, branch=None):
+        return Storage(self._session, self._path, self._root + (root and '/') + root, branch or self.branch)
+
+    async def exists(self, key):
+        return os.path.exists(os.path.join(self._path, 'meta', self._hash(self.root + (key and '/')+key))) 
+
+    async def getmtime(self, key, branch=None, timestamp=None):
+        return self._get_all_metadata(key, branch, timestamp)['timestamp']
 
     @tk.block_arg_evaluation
     async def set(self, key, value=None, metadata=None, branch=None, clear=False):
@@ -77,7 +90,7 @@ class Storage:
         os.rename(path_meta+'_', path_meta)
 
     async def _get_all_metadata(self, key, branch=None, timestamp=None):
-        hsh = self._hash((self._root+'/'+key).encode())
+        hsh = self._hash((self._root+(key and '/')+key).encode())
         metadata = None
         try:
             path_meta = os.path.join(self._path, 'meta', hsh, branch or self.branch)
