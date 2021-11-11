@@ -26,7 +26,7 @@ class Storage:
             os.makedirs(root_path)
 
     async def get_metadata(self, key, branch=None, timestamp=None):
-        return (await self._get_all_metadata(key, branch, timestamp)).get('user_metadata')
+        return (await self._get_all_metadata(key, branch, timestamp) or {}).get('user_metadata')
 
     async def get_tuple(self, key, default=None, branch=None, timestamp=None):
         metadata = None
