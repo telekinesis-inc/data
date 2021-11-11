@@ -49,7 +49,7 @@ class Storage:
         return Storage(self._session, self._path, self._root + (root and '/') + root, branch or self.branch)
 
     async def exists(self, key):
-        return os.path.exists(os.path.join(self._path, 'meta', self._hash(self._root + (key and '/')+key))) 
+        return os.path.exists(os.path.join(self._path, 'meta', self._hash((self._root + (key and '/')+key).encode()))) 
 
     async def getmtime(self, key, branch=None, timestamp=None):
         return self._get_all_metadata(key, branch, timestamp)['timestamp']
