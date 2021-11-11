@@ -69,6 +69,7 @@ class Storage:
         os.makedirs(os.path.dirname(path_meta), exist_ok=True)
 
         all_metadata = {
+            'key': self._root+(key and '/')+key,
             'user_metadata': combined_user_metadata,
             'timestamp': time.time()
         }
