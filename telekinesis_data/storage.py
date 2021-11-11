@@ -1,91 +1,113 @@
-import bson
 import os
+import hashlib
+import base64
+import time
+
+import bson
+import ujson
 import telekinesis as tk
-from glob import glob
-import shutil
-import re
 
 class Storage:
-    def __init__(self, session, prefix=''):
-        if len(prefix) < 2 or prefix[:2] != './':
-            prefix = './' + prefix
-        if re.findall(r'^\.\.\/|\/\.\.\/', prefix):
-            raise PermissionError
+    def __init__(self, session, path='', root=None, branch='main'):
+        if len(path) < 2 or path[:2] != './':
+            path = './' + path
         
-        self._prefix = prefix
+        self._path = path
+        self._root = root or ''
+        self.branch = branch
         
         self._session = session
-        if not os.path.exists(prefix):
-            os.makedirs(prefix)
-        
-    async def get(self, key, default=None):
+        if not os.path.exists(path+'/data'):
+            os.makedirs(path+'/data')
+            os.makedirs(path+'/meta')
+
+    async def get_metadata(self, key, branch=None, timestamp=None):
+        return (await self._get_all_metadata(key, branch, timestamp)).get('user_metadata')
+
+    async def get_tuple(self, key, default=None, branch=None, timestamp=None):
+        metadata = None
+        data = default
         try:
-            if await self.is_path(key):
-                return await self.create_child(key)
-            with open(os.path.join(self._prefix, key), 'rb') as f:
-                return tk.Telekinesis(None, self._session)._decode(bson.loads(f.read()))
+            if all_metadata := await self._get_all_metadata(key, branch, timestamp):
+                metadata = all_metadata.get('user_metadata')
+                if data_key := all_metadata.get('data'):
+                    with open(os.path.join(self._path, 'data', data_key), 'rb') as f:
+                        data = tk.Telekinesis(None, self._session)._decode(bson.loads(f.read()))
         except FileNotFoundError:
-            return default
+            pass
+
+        return metadata, data
+
+    async def get(self, key, default=None, branch=None, timestamp=None):
+        return (await self.get_tuple(key, default, branch, timestamp))[1]
 
     @tk.block_arg_evaluation
-    async def set(self, key, value):
-        if re.findall(r'^\.\.\/|\/\.\.\/', key):
-            raise PermissionError
+    async def set(self, key, value=None, metadata=None, branch=None, clear=False):
         if isinstance(value, tk.Telekinesis):
             value._block_gc = True
-        if isinstance(value, dict):
-            for val in value.values():
-                if isinstance(val, tk.Telekinesis):
-                    val._block_gc = True
-        path = os.path.join(self._prefix, key)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'wb') as f:
-            f.write(bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(value)))
+        hsh = self._hash((self._root+'/'+key).encode())
 
-    @tk.block_arg_evaluation
-    async def set_attribute(self, key, attr, value):
-        if re.findall(r'^\.\.\/|\/\.\.\/', key):
-            raise PermissionError
-        if isinstance(value, tk.Telekinesis):
-            value._block_gc = True
-        obj = await self.get(key) or {}
-        obj[attr] = value
-        with open(os.path.join(self._prefix, key), 'wb') as f:
-            f.write(bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(obj)))
+        old_user_metadata = ((not clear and await self._get_all_metadata(key, branch)) or {}).get('user_metadata') or {}
+        combined_user_metadata = old_user_metadata.copy()
+        combined_user_metadata.update(metadata or {})
 
-    @tk.block_arg_evaluation
-    async def set_append(self, key, value):
-        if re.findall(r'^\.\.\/|\/\.\.\/', key):
-            raise PermissionError
-        if isinstance(value, tk.Telekinesis):
-            value._block_gc = True
-        lst = await self.get(key) or []
-        lst.append(value)
-        with open(os.path.join(self._prefix, key), 'wb') as f:
-            f.write(bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(lst)))
+        path_meta = os.path.join(self._path, 'meta', hsh, branch or self.branch)
+        os.makedirs(os.path.dirname(path_meta), exist_ok=True)
 
-    async def list(self, pattern='*'):
-        if re.findall(r'^\.\.\/|\/\.\.\/', pattern):
-            raise PermissionError
-        return [os.path.join(*(p.split('/')[len(self._prefix.split('/')):])) 
-                for p in glob(os.path.join(self._prefix, pattern))]
-
-    async def remove(self, pattern):
-        [os.remove(os.path.join(self._prefix, p)) if os.path.isfile(os.path.join(self._prefix, p))
-         else shutil.rmtree(os.path.join(self._prefix, p)) for p in await self.list(pattern)]
+        all_metadata = {
+            'user_metadata': combined_user_metadata,
+            'timestamp': time.time()
+        }
         
-    async def is_path(self, key):
-        if re.findall(r'^\.\.\/|\/\.\.\/', key):
-            raise PermissionError
-        return os.path.isdir(os.path.join(self._prefix, key))
+        encoded_data = bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(value))
+        value_hsh = self._hash(encoded_data)
+        path_data = os.path.join(self._path, 'data', value_hsh)
+        if not os.path.exists(path_data):
+            with open(path_data+'_', 'wb') as f:
+                f.write(encoded_data)
+            os.rename(path_data+'_', path_data)
+        all_metadata['data'] = value_hsh
 
-    async def create_child(self, subprefix):
-        return Storage(self._session, os.path.join(self._prefix, subprefix))
-    
-    async def getmtime(self, key):
-        if re.findall(r'^\.\.\/|\/\.\.\/', key):
-            raise PermissionError
+        with open(path_meta + '_', 'w') as f:
+            ujson.dump(all_metadata, f, escape_forward_slashes=False)
+        os.rename(path_meta+'_', path_meta)
+
+    async def _get_all_metadata(self, key, branch=None, timestamp=None):
+        hsh = self._hash((self._root+'/'+key).encode())
+        metadata = None
         try:
-            return os.path.getmtime(os.path.join(self._prefix, key))
+            path_meta = os.path.join(self._path, 'meta', hsh, branch or self.branch)
+            with open(path_meta, 'rb') as f:
+                return ujson.load(f)
+
         except FileNotFoundError:
-            return FileNotFoundError
+            return metadata
+
+    def _hash(self, data):
+        return base64.b64encode(hashlib.blake2s(data).digest(), b'_-')[:-1].decode()
+
+    # @tk.block_arg_evaluation
+    # async def set_attribute(self, key, attr, value):
+    #     if isinstance(value, tk.Telekinesis):
+    #         value._block_gc = True
+    #     obj = await self.get(key) or {}
+    #     obj[attr] = value
+    #     with open(os.path.join(self._path, key), 'wb') as f:
+    #         f.write(bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(obj)))
+
+    # @tk.block_arg_evaluation
+    # async def set_append(self, key, value):
+    #     if isinstance(value, tk.Telekinesis):
+    #         value._block_gc = True
+    #     lst = await self.get(key) or []
+    #     lst.append(value)
+    #     with open(os.path.join(self._path, key), 'wb') as f:
+    #         f.write(bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(lst)))
+
+    # async def list(self, key):
+
+    # async def getmtime(self, key):
+    #     try:
+    #         return os.path.getmtime(os.path.join(self._path, key))
+    #     except FileNotFoundError:
+    #         return FileNotFoundError
