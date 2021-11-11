@@ -52,7 +52,7 @@ class Storage:
         return os.path.exists(os.path.join(self._path, 'meta', self._hash((self._root + (key and '/')+key).encode()))) 
 
     async def getmtime(self, key, branch=None, timestamp=None):
-        return self._get_all_metadata(key, branch, timestamp)['timestamp']
+        return (await self._get_all_metadata(key, branch, timestamp))['timestamp']
 
     @tk.block_arg_evaluation
     async def set(self, key, value=None, metadata=None, branch=None, clear=False):
