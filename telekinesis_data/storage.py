@@ -22,17 +22,21 @@ class Storage:
             os.makedirs(path+'/meta')
         
         root_path = path+'/meta/'+self._hash(self._root.encode())
-        if not os.path.exists(root_path):
-            os.makedirs(root_path)
+        if not self._raw_exists(self._root):
+            self._set_all_metadata(self._root, {
+                'key': self._root,
+                'user_metadata': {},
+                'timestamp': time.time(),
+                'children': []})
 
     async def get_metadata(self, key, branch=None, timestamp=None):
-        return (await self._get_all_metadata(self._root+(key and '/')+key, branch, timestamp) or {}).get('user_metadata')
+        return (self._get_all_metadata(self._root+(key and '/')+key, branch, timestamp) or {}).get('user_metadata')
 
     async def get_tuple(self, key, default=None, branch=None, timestamp=None):
         metadata = None
         data = default
         try:
-            if all_metadata := await self._get_all_metadata(self._root+(key and '/')+key, branch, timestamp):
+            if all_metadata := self._get_all_metadata(self._root+(key and '/')+key, branch, timestamp):
                 metadata = all_metadata.get('user_metadata')
                 if data_key := all_metadata.get('data'):
                     with open(os.path.join(self._path, 'data', data_key), 'rb') as f:
@@ -55,10 +59,10 @@ class Storage:
         return self._raw_exists(self._root + (key and '/')+key)
 
     async def getmtime(self, key, branch=None, timestamp=None):
-        return (await self._get_all_metadata(self._root+(key and '/')+key, branch, timestamp))['timestamp']
+        return (self._get_all_metadata(self._root+(key and '/')+key, branch, timestamp))['timestamp']
 
     async def list(self, root='', metadata_query=None, metadata=False, details=False, data=False, branch=None, timestamp=None):
-        raw_keys = (await self._get_all_metadata(self._root+(root and '/')+root, branch, timestamp) or {}).get('children') or []
+        raw_keys = (self._get_all_metadata(self._root+(root and '/')+root, branch, timestamp) or {}).get('children') or []
         keys = [k[len(self._root)+1:] for k in raw_keys]
         if metadata_query:
             raise NotImplemented
@@ -69,7 +73,7 @@ class Storage:
             if metadata:
                 out[k]['metadata'] = await self.get_metadata(rk, branch, timestamp)
             if details:
-                am = await self._get_all_metadata(rk, branch, timestamp)
+                am = self._get_all_metadata(rk, branch, timestamp)
                 out[k]['details'] = {'timestamp': am['timestamp'], 'n_children': len(am['children'])}
             if data:
                 out[k]['data'] = await self.get(k, None, branch, timestamp)
@@ -81,7 +85,7 @@ class Storage:
             value._block_gc = True
 
         fullkey = self._root+(key and '/')+key
-        old_all_metadata = await self._get_all_metadata(fullkey, branch)
+        old_all_metadata = self._get_all_metadata(fullkey, branch)
         old_user_metadata = ((not clear and (old_all_metadata or {})) or {}).get('user_metadata') or {}
         combined_user_metadata = old_user_metadata.copy()
         combined_user_metadata.update(metadata or {})
@@ -105,16 +109,15 @@ class Storage:
         else:
             all_metadata['data'] = old_all_metadata['data']
         
-        await self._set_all_metadata(fullkey, all_metadata, branch)
+        self._set_all_metadata(fullkey, all_metadata, branch)
 
-    async def _set_all_metadata(self, fullkey, all_metadata, branch):
+    def _set_all_metadata(self, fullkey, all_metadata, branch):
         hsh = self._hash(fullkey.encode())
         
-        print('setting', fullkey)
         if fullkey:
             parent = '/'.join(fullkey.split('/')[:-1])
             if not self._raw_exists(parent):
-                await self._set_all_metadata(parent, {
+                self._set_all_metadata(parent, {
                     'key': parent,
                     'user_metadata': {},
                     'timestamp': time.time(),
@@ -122,14 +125,9 @@ class Storage:
                 }, branch)
             else:
                 if not self._raw_exists(fullkey):
-                    old_all_metadata = await self._get_all_metadata(fullkey, branch) or {
-                        'key': parent,
-                        'user_metadata': {},
-                        'timestamp': time.time(),
-                        'children': []
-                    }
+                    old_all_metadata = self._get_all_metadata(fullkey, branch)
                     old_all_metadata['children'].append(fullkey)
-                    await self._set_all_metadata(parent, old_all_metadata, branch)
+                    self._set_all_metadata(parent, old_all_metadata, branch)
 
         path_meta = os.path.join(self._path, 'meta', hsh, branch or self.branch)
         os.makedirs(os.path.dirname(path_meta), exist_ok=True)
@@ -138,7 +136,7 @@ class Storage:
             ujson.dump(all_metadata, f, escape_forward_slashes=False)
         os.rename(path_meta+'_', path_meta)
 
-    async def _get_all_metadata(self, fullkey, branch, timestamp=None):
+    def _get_all_metadata(self, fullkey, branch, timestamp=None):
         hsh = self._hash((fullkey).encode())
         metadata = None
         try:
