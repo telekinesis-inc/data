@@ -124,7 +124,7 @@ class Storage:
                 }, branch)
             else:
                 if not self._raw_exists(fullkey):
-                    old_all_metadata = self._get_all_metadata(fullkey, branch)
+                    old_all_metadata = self._get_all_metadata(parent, branch)
                     old_all_metadata['children'].append(fullkey)
                     self._set_all_metadata(parent, old_all_metadata, branch)
 
