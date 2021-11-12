@@ -26,13 +26,13 @@ class Storage:
             os.makedirs(root_path)
 
     async def get_metadata(self, key, branch=None, timestamp=None):
-        return (await self._get_all_metadata(key, branch, timestamp) or {}).get('user_metadata')
+        return (await self._get_all_metadata(self._root+(key and '/')+key, branch, timestamp) or {}).get('user_metadata')
 
     async def get_tuple(self, key, default=None, branch=None, timestamp=None):
         metadata = None
         data = default
         try:
-            if all_metadata := await self._get_all_metadata(key, branch, timestamp):
+            if all_metadata := await self._get_all_metadata(self._root+(key and '/')+key, branch, timestamp):
                 metadata = all_metadata.get('user_metadata')
                 if data_key := all_metadata.get('data'):
                     with open(os.path.join(self._path, 'data', data_key), 'rb') as f:
@@ -48,30 +48,49 @@ class Storage:
     async def get_child(self, root, branch=None):
         return Storage(self._session, self._path, self._root + (root and '/') + root, branch or self.branch)
 
+    def _raw_exists(self, fullkey):
+        return os.path.exists(os.path.join(self._path, 'meta', self._hash(fullkey.encode()))) 
+    
     async def exists(self, key):
-        return os.path.exists(os.path.join(self._path, 'meta', self._hash((self._root + (key and '/')+key).encode()))) 
+        return self._raw_exists(self._root + (key and '/')+key)
 
     async def getmtime(self, key, branch=None, timestamp=None):
-        return (await self._get_all_metadata(key, branch, timestamp))['timestamp']
+        return (await self._get_all_metadata(self._root+(key and '/')+key, branch, timestamp))['timestamp']
 
+    async def list(self, root='', metadata_query=None, metadata=False, details=False, data=False, branch=None, timestamp=None):
+        raw_keys = (await self._get_all_metadata(self._root+(root and '/')+root, branch, timestamp) or {}).get('children') or []
+        keys = [k[len(self._root)+1:] for k in raw_keys]
+        if metadata_query:
+            raise NotImplemented
+        if not any([details, data, metadata, metadata_query]):
+            return keys
+        out = {k: {} for k in keys}
+        for k, rk in zip(keys, raw_keys):
+            if metadata:
+                out[k]['metadata'] = await self.get_metadata(rk, branch, timestamp)
+            if details:
+                am = await self._get_all_metadata(rk, branch, timestamp)
+                out[k]['details'] = {'timestamp': am['timestamp', 'n_children': len(am['children'])]}
+            if data:
+                out[k]['data'] = await self.get(k, None, branch, timestamp)
+        return out
+            
     @tk.block_arg_evaluation
     async def set(self, key, value=None, metadata=None, branch=None, clear=False):
         if isinstance(value, tk.Telekinesis):
             value._block_gc = True
-        hsh = self._hash((self._root+(key and '/')+key).encode())
 
-        old_all_metadata = await self._get_all_metadata(key, branch)
+        fullkey = self._root+(key and '/')+key
+        old_all_metadata = await self._get_all_metadata(fullkey, branch)
         old_user_metadata = ((not clear and (old_all_metadata or {})) or {}).get('user_metadata') or {}
         combined_user_metadata = old_user_metadata.copy()
         combined_user_metadata.update(metadata or {})
 
-        path_meta = os.path.join(self._path, 'meta', hsh, branch or self.branch)
-        os.makedirs(os.path.dirname(path_meta), exist_ok=True)
-
         all_metadata = {
-            'key': self._root+(key and '/')+key,
+            'key': fullkey,
             'user_metadata': combined_user_metadata,
-            'timestamp': time.time()
+            'timestamp': time.time(),
+            'children': (old_all_metadata or {}).get('children') or []
         }
         
         if value is not None or clear or not old_all_metadata:
@@ -85,13 +104,42 @@ class Storage:
             all_metadata['data'] = value_hsh
         else:
             all_metadata['data'] = old_all_metadata['data']
+        
+        await self._set_all_metadata(fullkey, all_metadata, branch)
+
+    async def _set_all_metadata(self, fullkey, all_metadata, branch):
+        hsh = self._hash(fullkey.encode())
+        
+        print('setting', fullkey)
+        if fullkey:
+            parent = '/'.join(fullkey.split('/')[:-1])
+            if not self._raw_exists(parent):
+                await self._set_all_metadata(parent, {
+                    'key': parent,
+                    'user_metadata': {},
+                    'timestamp': time.time(),
+                    'children': [fullkey]
+                }, branch)
+            else:
+                if not self._raw_exists(fullkey):
+                    old_all_metadata = await self._get_all_metadata(fullkey, branch) or {
+                        'key': parent,
+                        'user_metadata': {},
+                        'timestamp': time.time(),
+                        'children': []
+                    }
+                    old_all_metadata['children'].append(fullkey)
+                    await self._set_all_metadata(parent, old_all_metadata, branch)
+
+        path_meta = os.path.join(self._path, 'meta', hsh, branch or self.branch)
+        os.makedirs(os.path.dirname(path_meta), exist_ok=True)
 
         with open(path_meta + '_', 'w') as f:
             ujson.dump(all_metadata, f, escape_forward_slashes=False)
         os.rename(path_meta+'_', path_meta)
 
-    async def _get_all_metadata(self, key, branch=None, timestamp=None):
-        hsh = self._hash((self._root+(key and '/')+key).encode())
+    async def _get_all_metadata(self, fullkey, branch, timestamp=None):
+        hsh = self._hash((fullkey).encode())
         metadata = None
         try:
             path_meta = os.path.join(self._path, 'meta', hsh, branch or self.branch)
@@ -103,29 +151,3 @@ class Storage:
 
     def _hash(self, data):
         return base64.b64encode(hashlib.blake2s(data).digest(), b'_-')[:-1].decode()
-
-    # @tk.block_arg_evaluation
-    # async def set_attribute(self, key, attr, value):
-    #     if isinstance(value, tk.Telekinesis):
-    #         value._block_gc = True
-    #     obj = await self.get(key) or {}
-    #     obj[attr] = value
-    #     with open(os.path.join(self._path, key), 'wb') as f:
-    #         f.write(bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(obj)))
-
-    # @tk.block_arg_evaluation
-    # async def set_append(self, key, value):
-    #     if isinstance(value, tk.Telekinesis):
-    #         value._block_gc = True
-    #     lst = await self.get(key) or []
-    #     lst.append(value)
-    #     with open(os.path.join(self._path, key), 'wb') as f:
-    #         f.write(bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(lst)))
-
-    # async def list(self, key):
-
-    # async def getmtime(self, key):
-    #     try:
-    #         return os.path.getmtime(os.path.join(self._path, key))
-    #     except FileNotFoundError:
-    #         return FileNotFoundError
