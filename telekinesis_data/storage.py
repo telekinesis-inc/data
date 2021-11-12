@@ -21,13 +21,12 @@ class Storage:
             os.makedirs(path+'/data')
             os.makedirs(path+'/meta')
         
-        root_path = path+'/meta/'+self._hash(self._root.encode())
         if not self._raw_exists(self._root):
             self._set_all_metadata(self._root, {
                 'key': self._root,
                 'user_metadata': {},
                 'timestamp': time.time(),
-                'children': []})
+                'children': []}, branch)
 
     async def get_metadata(self, key, branch=None, timestamp=None):
         return (self._get_all_metadata(self._root+(key and '/')+key, branch, timestamp) or {}).get('user_metadata')
