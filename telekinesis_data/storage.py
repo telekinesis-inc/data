@@ -70,7 +70,7 @@ class Storage:
                 out[k]['metadata'] = await self.get_metadata(rk, branch, timestamp)
             if details:
                 am = await self._get_all_metadata(rk, branch, timestamp)
-                out[k]['details'] = {'timestamp': am['timestamp', 'n_children': len(am['children'])]}
+                out[k]['details'] = {'timestamp': am['timestamp'], 'n_children': len(am['children'])}
             if data:
                 out[k]['data'] = await self.get(k, None, branch, timestamp)
         return out
