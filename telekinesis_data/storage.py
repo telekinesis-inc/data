@@ -70,7 +70,7 @@ class Storage:
         out = {k: {} for k in keys}
         for k, rk in zip(keys, raw_keys):
             if metadata:
-                out[k]['metadata'] = await self.get_metadata(rk, branch, timestamp)
+                out[k]['metadata'] = await self.get_metadata(k, branch, timestamp)
             if details:
                 am = self._get_all_metadata(rk, branch, timestamp)
                 out[k]['details'] = {'timestamp': am['timestamp'], 'n_children': len(am['children'])}
