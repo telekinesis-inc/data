@@ -50,6 +50,10 @@ class Storage:
 
     async def get_child(self, root, branch=None):
         return Storage(self._session, self._path, self._root + (root and '/') + root, branch or self.branch)
+    
+    async def get_details(self, key, branch=None, timestamp=None):
+        am = self._get_all_metadata(self._root + (key and '/') + key, branch, timestamp)
+        return {'timestamp': am['timestamp'], 'n_children': len(am['children'])}
 
     def _raw_exists(self, fullkey):
         return os.path.exists(os.path.join(self._path, 'meta', self._hash(fullkey.encode()))) 
@@ -68,12 +72,11 @@ class Storage:
         if not any([details, data, metadata, metadata_query]):
             return keys
         out = {k: {} for k in keys}
-        for k, rk in zip(keys, raw_keys):
+        for k in keys:
             if metadata:
                 out[k]['metadata'] = await self.get_metadata(k, branch, timestamp)
             if details:
-                am = self._get_all_metadata(rk, branch, timestamp)
-                out[k]['details'] = {'timestamp': am['timestamp'], 'n_children': len(am['children'])}
+                out[k]['details'] = await self.get_details(k, branch, timestamp)
             if data:
                 out[k]['data'] = await self.get(k, None, branch, timestamp)
         return out
