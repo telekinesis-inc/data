@@ -197,6 +197,9 @@ class Dist:
                     else:
                         self._registry.set((branch_id, *k), None)
 
+    async def exists(self, key, timestamp=None, branch=None):
+        return (key in await self.list(key[:-1], timestamp, branch)) if len(key) else True
+
     @tk.inject_first_arg
     async def list_versions(self, context, key, timestamp=None, branch=None):
         is_peer, branch_id, branch = await self._overhead(context, branch)
@@ -270,6 +273,9 @@ class Dist:
                         self._registry.set((origin_branch_id, *k), None)
 
     async def get_branch(self, branch_tup, timestamp=None):
+        if branch_tup[1] is None:
+            return tk.Telekinesis(Branch(self, self._default_branch_id, branch_tup[0]))
+
         branch = await self.get_branch_info(branch_tup, timestamp)
         if branch['branch_id'] not in self._branches:
             self._branches['branch_id'] = branch
@@ -368,7 +374,8 @@ class Dist:
         return peer_id, branch_id, branch
 
 class Branch:
-    def __init__(self, parent, branch_id):
+    def __init__(self, parent, branch_id, root=None):
+        self._root = root or ()
         self._parent = parent
         self._branch_id = branch_id
 
@@ -379,7 +386,7 @@ class Branch:
     ):
         peer_id, _, _ = await self._parent._overhead(context, None)
         out = self._parent.set(
-            context, key, value, metadata, clear, value_getter, branch or self._branch_id)
+            context, self._root+tuple(key), value, metadata, clear, value_getter, branch or self._branch_id)
         if peer_id:
             return out
         return await out
@@ -387,7 +394,7 @@ class Branch:
     @tk.inject_first_arg
     async def get(self, context, key, metadata=False, timestamp=None, branch=None):
         peer_id, _, _ = await self._parent._overhead(context, None)
-        out = self._parent.get(context, key, metadata, timestamp, branch or self._branch_id)
+        out = self._parent.get(context, self._root + tuple(key), metadata, timestamp, branch or self._branch_id)
         if peer_id:
             return out
         return await out
@@ -395,7 +402,15 @@ class Branch:
     @tk.inject_first_arg
     async def list(self, context, key, timestamp=None, branch=None):
         peer_id, _, _ = await self._parent._overhead(context, None)
-        out = self._parent.list(key, timestamp, branch or self._branch_id)
+        out = self._parent.list(self._root + tuple(key), timestamp, branch or self._branch_id)
+        if peer_id:
+            return out
+        return await out
+        
+    @tk.inject_first_arg
+    async def exists(self, context, key, timestamp=None, branch=None):
+        peer_id, _, _ = await self._parent._overhead(context, None)
+        out = self._parent.exists(self._root + tuple(key), timestamp, branch or self._branch_id)
         if peer_id:
             return out
         return await out
@@ -403,7 +418,7 @@ class Branch:
     @tk.inject_first_arg
     async def list_versions(self, context, key, timestamp=None, branch=None):
         peer_id, _, _ = await self._parent._overhead(context, None)
-        out = self._parent.list_versions(context, key, timestamp, branch or self._branch_id)
+        out = self._parent.list_versions(context, self._root + tuple(key), timestamp, branch or self._branch_id)
         if peer_id:
             return out
         return await out
@@ -411,7 +426,8 @@ class Branch:
     @tk.inject_first_arg
     async def list_branches(self, context, key, timestamp=None, branch=None):
         peer_id, _, _ = await self._parent._overhead(context, None)
-        out = self._parent.list_branches(key, timestamp, branch or self._branch_id)
+        out = self._parent.list_branches(self._root+ tuple(key), timestamp, branch or self._branch_id)
         if peer_id:
             return out
         return await out
+
