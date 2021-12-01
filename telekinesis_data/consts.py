@@ -1,0 +1,23 @@
+REGIONS = {
+    'ap-south-1': '8AAA',
+    'me-south-1': '7AAA',
+    'ap-southeast-1': '4AAA',
+    'ap-east-1': '3AAA',
+    'ap-northeast-2': '1AAA',
+    'ap-northeast-1': 'zAAA',
+    'ap-northeast-3': 'yAAA',
+    'ap-southeast-2': 'tAAA',
+    'us-west-1': 'nAAA',
+    'us-west-2': 'mAAA',
+    'us-east-2': 'kAAA',
+    'us-east-1': 'jAAA',
+    'ca-central-1': 'hAAA',
+    'sa-east-1': 'aAAA',
+    'af-south-1': 'MAAA',
+    'eu-south-1': 'FAAA',
+    'eu-west-1': 'EAAA',
+    'eu-west-2': 'DAAA',
+    'eu-central-1': 'CAAA',
+    'eu-north-1': 'BAAA',
+    'eu-west-3': 'AAAA'
+}
