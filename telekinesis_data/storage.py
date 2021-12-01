@@ -88,13 +88,13 @@ class Item:
                 f.write(ujson.dumps([k, v], escape_forward_slashes=False) + '\n')
     
     def __iter__(self):
-        self._file = open(self._path, 'r')
+        self._file = os.path.exists(self._path) and open(self._path, 'r')
         return self
 
     def __next__(self):
-        if content := self._file.readline():
+        if content := self._file and self._file.readline():
             return tuple(ujson.loads(content))
         else:
-            self._file.close()
+            self._file and self._file.close()
             raise StopIteration
         
