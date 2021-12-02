@@ -274,12 +274,12 @@ class Dist:
 
     async def get_branch(self, branch_tup, timestamp=None):
         if branch_tup[1] is None:
-            return tk.Telekinesis(Branch(self, self._default_branch_id, branch_tup[0]))
+            return tk.Telekinesis(Branch(self, self._default_branch_id, branch_tup[0]), self._session)
 
         branch = await self.get_branch_info(branch_tup, timestamp)
         if branch['branch_id'] not in self._branches:
             self._branches['branch_id'] = branch
-        return tk.Telekinesis(Branch(self, branch['branch_id']))
+        return tk.Telekinesis(Branch(self, branch['branch_id']), self._session)
 
     async def get_branch_info(self, branch_tup, timestamp=None):
         _, branch_id, branch = await self._overhead(None, None)
