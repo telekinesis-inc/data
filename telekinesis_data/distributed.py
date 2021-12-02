@@ -431,3 +431,32 @@ class Branch:
             return out
         return await out
 
+    @tk.inject_first_arg
+    async def create_branch(self, context, new_branch, origin_branch=None, origin_timestamp=None):
+        peer_id, _, _ = await self._parent._overhead(context, None)
+
+        if not isinstance(origin_branch, str):
+            if origin_branch:
+                origin_branch = ((self._root, *origin_branch[0]), origin_branch[1])
+            else:
+                origin_branch = self._branch_id
+        out = self._parent.create_branch(((self._root, *new_branch[0]), new_branch[1]), origin_branch, origin_timestamp)
+        if peer_id:
+            return out
+        return await out
+
+    @tk.inject_first_arg
+    async def get_branch(self, context, branch_tup, timestamp=None):
+        peer_id, _, _ = await self._parent._overhead(context, None)
+        out = self._parent.get_branch(((self._root, *branch_tup[0]), branch_tup[1]), timestamp)
+        if peer_id:
+            return out
+        return await out
+
+    @tk.inject_first_arg
+    async def get_branch_info(self, context, branch_tup, timestamp=None):
+        peer_id, _, _ = await self._parent._overhead(context, None)
+        out = self._parent.get_branch_info(((self._root, *branch_tup[0]), branch_tup[1]), timestamp)
+        if peer_id:
+            return out
+        return await out
