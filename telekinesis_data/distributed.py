@@ -72,7 +72,7 @@ class Dist:
                         else:
                             self._registry.set((branch_id, *ck), peer_id) 
                             
-                            self._local.set((branch_id, *k), [('ua', {'children': ck})])
+                            self._local.set((branch_id, *k), [('ua', {'children': ck[-1]})])
                         return k, self.id
                     else:
                         if peer := self._peers.get(owner_id):
@@ -116,11 +116,11 @@ class Dist:
                             ck = key[:-j] or key
                             if kk == root:
                                 if root_owner_id == self.id:
-                                    self._local.set((branch_id, *kk), [('ua', {'children': ck})])
+                                    self._local.set((branch_id, *kk), [('ua', {'children': ck[-1]})])
                                 return
                             else:
                                 self._registry.set((branch_id, *kk), self.id)
-                                self._local.set((branch_id, *kk), [('ua', {'children': ck})])
+                                self._local.set((branch_id, *kk), [('ua', {'children': ck[-1]})])
                     elif root_owner_id == self.id:
                         self._local.set((branch_id, *key), [
                             ('u' if clear else 'uu', {'metadata': metadata or {}}),
