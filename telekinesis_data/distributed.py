@@ -198,7 +198,7 @@ class Dist:
                         self._registry.set((branch_id, *k), None)
 
     async def exists(self, key, timestamp=None, branch=None):
-        return (key in await self.list(key[:-1], timestamp, branch)) if len(key) else True
+        return (key[-1] in await self.list(key[:-1], timestamp, branch)) if len(key) else True
 
     @tk.inject_first_arg
     async def list_versions(self, context, key, timestamp=None, branch=None):
