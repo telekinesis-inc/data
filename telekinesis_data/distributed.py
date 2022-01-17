@@ -10,7 +10,7 @@ from .storage import SimpleKV, SimpleFileContainer
 from .timetravel import TimetravelerKV
 from .consts import REGIONS
 
-class Dist:
+class TelekinesisData:
     def __init__(self, session, path, region='AAAA'):
         if region in REGIONS:
             region = REGIONS[region]
@@ -47,6 +47,8 @@ class Dist:
             value._block_gc = True
 
         if not value_getter:
+            # TODO: do not encode strings/bytes
+            
             value_enc = bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(value))
             value_hash = self._hash(value_enc)
         else:

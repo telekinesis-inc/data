@@ -12,7 +12,7 @@ def event_loop():  # This avoids 'Task was destroyed but it is pending!' message
     yield asyncio.get_event_loop()
 
 
-async def test_serialize(tmp_path):
+async def test_set_get(tmp_path):
     class Registry(dict): pass
 
     broker = await tk.Broker().serve(port=BROKER_PORT)
@@ -25,10 +25,10 @@ async def test_serialize(tmp_path):
     u1 = await tk.Entrypoint(URL, str(tmp_path)+'/session_0.pem')
     u1._session.instance_id = 'BBBBbbbb'
 
-    d0 = td.Dist(u0._session, str(tmp_path)+'/data_0/').client
+    d0 = td.TelekinesisData(u0._session, str(tmp_path)+'/data_0/').client
     await d0.begin('AAAAaaaaAAAAcccc')
 
-    d1 = td.Dist(u1._session, str(tmp_path)+'data_1/').client
+    d1 = td.TelekinesisData(u1._session, str(tmp_path)+'data_1/').client
 
     await u0.update({'d0': d0})
     td0 = await u1.get('d0')

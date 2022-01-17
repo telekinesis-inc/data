@@ -11,7 +11,7 @@ setuptools.setup(
     description="Hierarchical, distributed, versioned and metadata queryable database",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/telekinesis-inc/data",
+    url="https://github.com/telekinesis-inc/telekinesis_data",
     packages=setuptools.find_packages(),
     install_requires=["telekinesis", "bson", "ujson"],
     classifiers=[
