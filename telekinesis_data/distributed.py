@@ -1,3 +1,4 @@
+from operator import is_
 import os
 import time
 import base64
@@ -184,6 +185,30 @@ class TelekinesisData:
                                     ._decode(bson.loads(data))
                     else:
                         self._registry.set(k, None)
+
+    @tk.inject_first_arg
+    async def remove(self, context, key, branch=None):
+        _, branch_id, branch = await self._overhead(context, branch)
+
+        for i in range(0, len(key)+1):
+            k = key[:-i] or (i == 0 and key) or ()
+            ck = key[:-(i or 1)+1] or key
+            if owner_id := self._registry.get((branch_id, *k)):
+                if i == 0:
+                    self._registry.set((branch_id, *k), None)
+                if owner_id == self.id:
+                    if i == 1:
+                        self._registry.set((branch_id, *ck), None)
+                        self._local.set((branch_id, *k), [
+                            ('ur', {'children': ck[-1]})
+                        ])
+                        return
+                else:
+                    if peer := self._peers.get(owner_id):
+                        return peer.remove(key, branch)
+                    else:
+                        self._registry.set((branch_id, *k), None)
+
 
     async def list(self, key, timestamp=None, branch=None):
         _, branch_id, branch = await self._overhead(None, branch)
@@ -389,6 +414,14 @@ class Branch:
         peer_id, _, _ = await self._parent._overhead(context, None)
         out = self._parent.set(
             context, self._root+tuple(key), value, metadata, clear, value_getter, branch or self._branch_id)
+        if peer_id:
+            return out
+        return await out
+
+    @tk.inject_first_arg
+    async def remove(self, context, key, branch=None):
+        peer_id, _, _ = await self._parent._overhead(context, None)
+        out = self._parent.remove(context, self._root + tuple(key), branch or self._branch_id)
         if peer_id:
             return out
         return await out

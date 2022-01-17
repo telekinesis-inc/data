@@ -46,7 +46,7 @@ class SimpleKV:
             return bson.loads(self._data.get(keyenc))['value']
     
     def keys(self):
-        return list(v for _, v in self._keyencs)
+        return list(set(tuple(v) for _, v in self._keyencs))
         
     def _hash(self, data):
         return base64.b64encode(hashlib.blake2s(data).digest(), b'_-')[:-1].decode()

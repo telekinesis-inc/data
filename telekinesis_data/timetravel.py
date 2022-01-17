@@ -53,6 +53,13 @@ class TimetravelerKV:
                         value = value or {}
                         attr = list(val.keys())[0]
                         value.update({attr: (value.get(attr) or []) + [val[attr]]})
+                    if mode == 'ur':
+                        value = value or {}
+                        attr = list(val.keys())[0]
+                        subval = value.get(attr) or []
+                        if val[attr] in subval:
+                            subval.remove(val[attr])
+                        value.update({attr: subval})
                     if mode == 'uu':
                         value = value or {}
                         attr = list(val.keys())[0]
