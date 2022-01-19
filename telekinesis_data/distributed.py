@@ -48,10 +48,17 @@ class TelekinesisData:
             value._block_gc = True
 
         if not value_getter:
-            # TODO: do not encode strings/bytes
-            
-            value_enc = bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(value))
-            value_hash = self._hash(value_enc)
+            if isinstance(value, bytes):
+                value_enc = value
+                prefix = '0'
+            elif isinstance(value, str):
+                value_enc = value.encode()
+                prefix = '1'
+            else:
+                value_enc = bson.dumps(tk.Telekinesis(None, self._session, block_gc=True)._encode(value))
+                prefix = ''
+
+            value_hash = prefix + self._hash(value_enc)
         else:
             value_hash = value
 
@@ -70,7 +77,7 @@ class TelekinesisData:
                             if value is not None or clear and value_hash not in self._data:
                                 if value_getter:
                                     value_enc = await value_getter()
-                                    assert self._hash(value_enc) == value_hash
+                                    assert self._hash(value_enc) == value_hash[1:]
                                 self._data.set(value_hash, value_enc)
                         else:
                             self._registry.set((branch_id, *ck), peer_id) 
@@ -86,7 +93,7 @@ class TelekinesisData:
             if value is not None or clear and value_hash not in self._data:
                 if value_getter:
                     value_enc = await value_getter()
-                    assert value_hash == self._hash(value_enc)
+                    assert value_hash == self._hash(value_enc)[1:]
                 self._data.set(value_hash, value_enc)
             for i in range(len(key)+1):
                 k = key[:-i] or (i == 0 and key) or ()
@@ -148,8 +155,15 @@ class TelekinesisData:
                             return out
                         if value_hash := obj.get('value'):
                             if value_enc := self._data.get(value_hash):
-                                data = tk.Telekinesis(None, self._session)\
-                                    ._decode(bson.loads(value_enc))
+                                if len(value_hash) == 43:
+                                    data = tk.Telekinesis(None, self._session)\
+                                        ._decode(bson.loads(value_enc))
+                                elif value_hash[0] == '0':
+                                    data = value_enc
+                                
+                                elif value_hash[0] == '1':
+                                    data = value_enc.decode()
+
                                 if is_peer:
                                     if len(value_enc) > 2**18:
                                         return ('getter', value_hash, lambda: value_enc)
@@ -176,13 +190,20 @@ class TelekinesisData:
                             if out[0] == 'data':
                                 return out[1]
                             if out[0] == 'getter':
-                                if data := self._data.get(out[1]):
+                                value_hash = out[1]
+                                if data := self._data.get(value_hash):
                                     pass
                                 else:
-                                    data = await out[2]()
-                                    self._data.set(out[1], data)
-                                return tk.Telekinesis(None, self._session)\
-                                    ._decode(bson.loads(data))
+                                    value_enc = await out[2]()
+                                    self._data.set(value_hash, data)
+                                    if len(value_hash) == 43:
+                                        return tk.Telekinesis(None, self._session)\
+                                            ._decode(bson.loads(value_enc))
+                                    elif value_hash[0] == '0':
+                                        return value_enc
+                                    
+                                    elif value_hash[0] == '1':
+                                        return value_enc.decode()
                     else:
                         self._registry.set(k, None)
 
