@@ -9,7 +9,7 @@ import telekinesis as tk
 
 from .storage import SimpleKV, SimpleFileContainer
 from .timetravel import TimetravelerKV
-from .consts import REGIONS
+from .const import REGIONS
 
 class TelekinesisData:
     def __init__(self, session, path, region='AAAA'):
