@@ -157,7 +157,7 @@ class TelekinesisData:
                             if value_enc := self._data.get(value_hash):
                                 if len(value_hash) == 43:
                                     data = tk.Telekinesis(None, self._session)\
-                                        ._decode(bson.loads(value_enc))
+                                        ._decode(bson.loads(value_enc), self._session.session_key.public_serial())
                                 elif value_hash[0] == '0':
                                     data = value_enc
                                 
@@ -198,7 +198,7 @@ class TelekinesisData:
                                     self._data.set(value_hash, data)
                                     if len(value_hash) == 43:
                                         return tk.Telekinesis(None, self._session)\
-                                            ._decode(bson.loads(value_enc))
+                                            ._decode(bson.loads(value_enc), self._session.session_key.public_serial())
                                     elif value_hash[0] == '0':
                                         return value_enc
                                     
