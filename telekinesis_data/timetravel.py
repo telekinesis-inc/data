@@ -62,10 +62,43 @@ class TimetravelerKV:
                         value.update({attr: subval})
                     if mode == 'uu':
                         value = value or {}
-                        attr = list(val.keys())[0]
-                        subval = value.get(attr) or {}
-                        subval.update(val[attr])
-                        value.update({attr: subval})
+                        for attr in val:
+                            subvalue = value.get(attr, {})
+                            subval = val[attr]
+                            for subattr in subval:
+                                new_value = subval[subattr]
+                                subvalue.update({subattr: new_value})
+                            value.update({attr: subvalue})
+                    if mode == 'uuu':
+                        value = value or {}
+                        for attr in val:
+                            subvalue = value.get(attr, {})
+                            subval = val[attr]
+                            for subattr in subval:
+                                subsubvalue = subvalue.get(subattr, {})
+                                subsubval = subval[subattr]
+                                for subsubattr in subsubval:
+                                    subsubvalue.update({subsubattr: subsubval[subsubattr]})
+                                subvalue.update({subattr: subsubvalue})
+                            value.update({attr: subvalue})
+                    if mode == 'uu+':
+                        value = value or {}
+                        for attr in val:
+                            subvalue = value.get(attr, {})
+                            subval = val[attr]
+                            for subattr in subval:
+                                new_value = subvalue.get(subattr, 0) + subval[subattr]
+                                subvalue.update({subattr: new_value})
+                            value.update({attr: subvalue})
+                    if mode == 'uu0':
+                        value = value or {}
+                        for attr in val:
+                            subvalue = value.get(attr, {})
+                            subval = val[attr]
+                            for subattr in subval:
+                                new_value = 0
+                                subvalue.update({subattr: new_value})
+                            value.update({attr: subvalue})
         return value
                 
     def set(self, key, changes):

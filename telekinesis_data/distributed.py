@@ -231,6 +231,32 @@ class TelekinesisData:
                         self._registry.set((branch_id, *k), None)
 
 
+    @tk.inject_first_arg
+    async def update(self, context, key, changes, condition=None, branch=None):
+        _, branch_id, branch = await self._overhead(context, branch)
+
+        for i in range(0, len(key)+1):
+            k = key[:-i] or (i == 0 and key) or ()
+            if owner_id := self._registry.get((branch_id, *k)):
+                if owner_id == self.id:
+                    if i == 0:
+                        condition = [condition, {}] if isinstance(condition, str) else condition
+                        if not condition or eval(condition[0], self._local.get((branch_id, *k)).get('metadata', {}), condition[1]):
+                            self._local.set((branch_id, *k), [
+                                ('uu'+c, {'metadata': v}) for c, v in changes
+                            ])
+                            return self._local.get((branch_id, *k))['metadata']
+                        else:
+                            raise Exception(f"Condition '{condition[0]}' not fullfiled")
+                    else:
+                        raise FileNotFoundError
+                else:
+                    if peer := self._peers.get(owner_id):
+                        return peer.update(key, changes, condition, branch)
+                    else:
+                        self._registry.set((branch_id, *k), None)
+
+
     async def list(self, key, timestamp=None, branch=None):
         _, branch_id, branch = await self._overhead(None, branch)
 
