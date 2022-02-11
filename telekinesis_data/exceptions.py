@@ -1,0 +1,1 @@
+class ConditionNotFullfilled(Exception): pass
