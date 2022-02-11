@@ -81,6 +81,18 @@ class TimetravelerKV:
                                     subsubvalue.update({subsubattr: subsubval[subsubattr]})
                                 subvalue.update({subattr: subsubvalue})
                             value.update({attr: subvalue})
+                    if mode == 'uup':
+                        value = value or {}
+                        for attr in val:
+                            subvalue = value.get(attr, {})
+                            subval = val[attr]
+                            for subattr in subval:
+                                subsubvalue = subvalue.get(subattr, {})
+                                subsubval = subval[subattr]
+                                for subsubattr in subsubval:
+                                    subsubvalue.pop(subsubattr, None)
+                                subvalue.update({subattr: subsubvalue})
+                            value.update({attr: subvalue})
                     if mode == 'uu+':
                         value = value or {}
                         for attr in val:

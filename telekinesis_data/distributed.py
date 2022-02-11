@@ -1,15 +1,18 @@
-from operator import is_
 import os
 import time
+import math
 import base64
 import hashlib
+import asyncio
 
 import bson
 import telekinesis as tk
 
+
 from .storage import SimpleKV, SimpleFileContainer
 from .timetravel import TimetravelerKV
 from .const import REGIONS
+from .exceptions import ConditionNotFullfilled
 
 class TelekinesisData:
     def __init__(self, session, path, region='AAAA'):
@@ -241,13 +244,18 @@ class TelekinesisData:
                 if owner_id == self.id:
                     if i == 0:
                         condition = [condition, {}] if isinstance(condition, str) else condition
-                        if not condition or eval(condition[0], self._local.get((branch_id, *k)).get('metadata', {}), condition[1]):
+                        globals_obj = {**self._local.get((branch_id, *k)).get('metadata', {}), 'math': math, 'time': time}
+                        if not condition or eval(condition[0], {**globals_obj, **condition[1]}):
                             self._local.set((branch_id, *k), [
-                                ('uu'+c, {'metadata': v}) for c, v in changes
+                                ('uu'+c, {
+                                    'metadata': {
+                                        k: eval(vv if isinstance(vv, str) else vv[0], {**globals_obj, **({} if isinstance(vv, str) else vv[1])}) 
+                                            for k, vv in v.items()
+                                    }}) for c, v in changes
                             ])
                             return self._local.get((branch_id, *k))['metadata']
                         else:
-                            raise Exception(f"Condition '{condition[0]}' not fullfiled")
+                            raise ConditionNotFullfilled(f"Condition '{condition[0]}' not fullfiled")
                     else:
                         raise FileNotFoundError
                 else:
@@ -257,17 +265,28 @@ class TelekinesisData:
                         self._registry.set((branch_id, *k), None)
 
 
-    async def list(self, key, timestamp=None, branch=None):
+    async def list(self, key, query=None, timestamp=None, branch=None):
         _, branch_id, branch = await self._overhead(None, branch)
 
         for i in range(len(key)+1):
             k = key[:-i] or (i==0 and key) or ()
             if owner_id := self._registry.get((branch_id, *k)):
                 if owner_id == self.id:
-                    return (self._local.get((branch_id, *key), timestamp) or {}).get('children') or []
+                    children = (self._local.get((branch_id, *key), timestamp) or {}).get('children') or []
+                    if query:
+                        children_metadata = await asyncio.gather(*[
+                            asyncio.create_task(self.client.get((*key, child), metadata=True)._execute()) for child in children
+                        ])
+                        query = [query, {}] if isinstance(query, str) else query
+
+                        children = [c for i, c in enumerate(children) if eval(
+                            query[0], {**children_metadata[i], 'math': math, 'time': time}, query[1]
+                        )]
+
+                    return children                 
                 else:
                     if owner := self._peers.get(owner_id):
-                        return owner.list(key, timestamp, branch)
+                        return owner.list(key, query, timestamp, branch)
                     else:
                         self._registry.set((branch_id, *k), None)
 
@@ -413,7 +432,7 @@ class TelekinesisData:
 
         raise PermissionError
     
-        return sorted(self._peers)[0]
+        # return sorted(self._peers)[0]
 
     def _hash(self, data):
         return base64.b64encode(hashlib.blake2s(data).digest(), b'_-')[:-1].decode()
@@ -466,6 +485,14 @@ class Branch:
         return await out
 
     @tk.inject_first_arg
+    async def update(self, context, key, changes, condition=None, branch=None):
+        peer_id, _, _ = await self._parent._overhead(context, None)
+        out = self._parent.update(context, self._root + tuple(key), changes, condition, branch or self._branch_id)
+        if peer_id:
+            return out
+        return await out
+
+    @tk.inject_first_arg
     async def remove(self, context, key, branch=None):
         peer_id, _, _ = await self._parent._overhead(context, None)
         out = self._parent.remove(context, self._root + tuple(key), branch or self._branch_id)
@@ -482,9 +509,9 @@ class Branch:
         return await out
 
     @tk.inject_first_arg
-    async def list(self, context, key, timestamp=None, branch=None):
+    async def list(self, context, key, query=None, timestamp=None, branch=None):
         peer_id, _, _ = await self._parent._overhead(context, None)
-        out = self._parent.list(self._root + tuple(key), timestamp, branch or self._branch_id)
+        out = self._parent.list(self._root + tuple(key), query, timestamp, branch or self._branch_id)
         if peer_id:
             return out
         return await out
