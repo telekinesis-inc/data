@@ -1,1 +1,1 @@
-class ConditionNotFullfilled(Exception): pass
+class ConditionNotFulfilled(Exception): pass

@@ -12,7 +12,7 @@ import telekinesis as tk
 from .storage import SimpleKV, SimpleFileContainer
 from .timetravel import TimetravelerKV
 from .const import REGIONS
-from .exceptions import ConditionNotFullfilled
+from .exceptions import ConditionNotFulfilled
 
 class TelekinesisData:
     def __init__(self, session, path, region='AAAA'):
@@ -255,7 +255,7 @@ class TelekinesisData:
                             ])
                             return self._local.get((branch_id, *k))['metadata']
                         else:
-                            raise ConditionNotFullfilled(f"Condition '{condition[0]}' not fullfiled")
+                            raise ConditionNotFulfilled(f"Condition '{condition[0]}' not fullfiled")
                     else:
                         raise FileNotFoundError
                 else:

@@ -1,6 +1,6 @@
 from .distributed import TelekinesisData, Branch
 from . import const
-from .exceptions import ConditionNotFullfilled
+from .exceptions import ConditionNotFulfilled
 
 from pkg_resources import get_distribution
 
@@ -12,5 +12,5 @@ __all__ = [
   "const",
   "TelekinesisData",
   "Branch",
-  "ConditionNotFullfilled"
+  "ConditionNotFulfilled"
 ]
