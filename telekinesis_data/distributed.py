@@ -73,7 +73,7 @@ class TelekinesisData:
                     if owner_id == self.id:
                         if k == key:
                             self._registry.set((branch_id, *key), self.id)
-                            self._local.set((branch_id, *key), [
+                            timestamp = self._local.set((branch_id, *key), [
                                 ('u' if clear else 'uu', {'metadata': metadata or {}}),
                                 ('u', {'value': value_hash} if value is not None or clear else {})
                             ])
@@ -82,6 +82,8 @@ class TelekinesisData:
                                     value_enc = await value_getter()
                                     assert self._hash(value_enc) == value_hash[1:]
                                 self._data.set(value_hash, value_enc)
+                            return timestamp
+
                         else:
                             self._registry.set((branch_id, *ck), peer_id) 
                             
@@ -119,7 +121,7 @@ class TelekinesisData:
                     
                     self._registry.set((branch_id, *root), root_owner_id)
                     if root != key:
-                        self._local.set((branch_id, *key), [
+                        timestamp = self._local.set((branch_id, *key), [
                             ('u' if clear else 'uu', {'metadata': metadata or {}}),
                             ('u', {'value': value_hash} if value is not None or clear else {})
                         ])
@@ -130,16 +132,16 @@ class TelekinesisData:
                             if kk == root:
                                 if root_owner_id == self.id:
                                     self._local.set((branch_id, *kk), [('ua', {'children': ck[-1]})])
-                                return
+                                return timestamp
                             else:
                                 self._registry.set((branch_id, *kk), self.id)
                                 self._local.set((branch_id, *kk), [('ua', {'children': ck[-1]})])
                     elif root_owner_id == self.id:
-                        self._local.set((branch_id, *key), [
+                        timestamp = self._local.set((branch_id, *key), [
                             ('u' if clear else 'uu', {'metadata': metadata or {}}),
                             ('u', {'value': value_hash} if value is not None or clear else {})
                         ])
-                        return
+                        return timestamp
 
     @tk.inject_first_arg
     async def get(self, context, key, metadata=False, timestamp=None, branch=None):
@@ -221,12 +223,18 @@ class TelekinesisData:
                 if i == 0:
                     self._registry.set((branch_id, *k), None)
                 if owner_id == self.id:
+                    if i == 0:
+                        timestamp = self._local.set((branch_id, *k), [
+                            ('u', {'value': None})
+                        ])
+                        if len(key) == 0:
+                            return timestamp
                     if i == 1:
                         self._registry.set((branch_id, *ck), None)
-                        self._local.set((branch_id, *k), [
+                        timestamp = self._local.set((branch_id, *k), [
                             ('ur', {'children': ck[-1]})
                         ])
-                        return
+                        return timestamp
                 else:
                     if peer := self._peers.get(owner_id):
                         return peer.remove(key, branch)
@@ -264,6 +272,16 @@ class TelekinesisData:
                     else:
                         self._registry.set((branch_id, *k), None)
 
+    @tk.inject_first_arg
+    async def tree(self, context, key, timestamp=None, branch=None):
+        key_version = (await self.list_versions(context, key, timestamp, branch))[-1]
+        children = await self.list(key, None, timestamp, branch)
+        children_out = await asyncio.gather(*[self.tree(context, key+(c,), timestamp, branch) for c in children])
+
+        return {key: key_version, **{k: v for c in children_out for k, v in c.items()}}
+
+    # async def subscribe(self, key, callback, branch=None):
+    #     pass
 
     async def list(self, key, query=None, timestamp=None, branch=None):
         _, branch_id, branch = await self._overhead(None, branch)
@@ -488,6 +506,14 @@ class Branch:
     async def update(self, context, key, changes, condition=None, branch=None):
         peer_id, _, _ = await self._parent._overhead(context, None)
         out = self._parent.update(context, self._root + tuple(key), changes, condition, branch or self._branch_id)
+        if peer_id:
+            return out
+        return await out
+
+    @tk.inject_first_arg
+    async def tree(self, context, key, timestamp=None, branch=None):
+        peer_id, _, _ = await self._parent._overhead(context, None)
+        out = self._parent.tree(context, self._root + tuple(key), timestamp, branch or self._branch_id)
         if peer_id:
             return out
         return await out

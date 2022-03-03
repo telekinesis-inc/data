@@ -117,6 +117,7 @@ class TimetravelerKV:
         timestamp = time.time()
         log = self.log.get(key)
         log.update({timestamp: changes})
+        return timestamp
         # self.log[key] = log
         
         # checkpoints = self.checkpoints.get(key) or {}
