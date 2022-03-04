@@ -1,5 +1,6 @@
 from glob import glob
 import os
+import asyncio
 import shutil
 import time
 from .storage import SimpleKV
@@ -9,9 +10,15 @@ class FileSync:
         self.data = data_branch
         self.target_dir = target_dir
         self.tracker = SimpleKV(support_dir)
+        self.task = asyncio.create_task(self.keep_sync())
         
         self.ftk = lambda f: tuple(f.strip('/').split('/')[len(self.target_dir.strip('/').split('/')):])
         self.ktf = lambda k: os.path.join(self.target_dir, '/'.join(k))
+
+    async def keep_sync(self):
+        while True:
+            await self.sync()
+            await asyncio.sleep(5)
 
     async def sync(self):
         tree = await self.data.tree(())
