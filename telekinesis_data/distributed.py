@@ -513,10 +513,8 @@ class Branch:
     @tk.inject_first_arg
     async def tree(self, context, key, timestamp=None, branch=None):
         peer_id, _, _ = await self._parent._overhead(context, None)
-        out = self._parent.tree(context, self._root + tuple(key), timestamp, branch or self._branch_id)
-        if peer_id:
-            return out
-        return await out
+        out = await self._parent.tree(context, self._root + tuple(key), timestamp, branch or self._branch_id)
+        return {k[len(self._root):]: v for k, v in out.items()}
 
     @tk.inject_first_arg
     async def remove(self, context, key, branch=None):
