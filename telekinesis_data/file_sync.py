@@ -29,7 +29,8 @@ class FileSync:
                 if d:
                     print('downloading', t)
                     with open(self.ktf(t), 'wb') as f:
-                        f.write(await self.data.get(t))
+                        data = await self.data.get(t)
+                        f.write(data if isinstance(data, bytes) else str(data).encode())
                     self.tracker.set(t, (os.path.getmtime(self.ktf(t)), tree[t], False))
                 elif await self.data.list(t):
                     if not os.path.exists(self.ktf(t)):
