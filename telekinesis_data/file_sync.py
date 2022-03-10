@@ -20,23 +20,24 @@ class FileSync:
             await self.sync()
             await asyncio.sleep(10)
 
-    async def sync(self):
-        tree = await self.data.tree(())
-        files = glob(os.path.join(self.target_dir, '**'), recursive=True)
-        for t in tree:
-            if t not in self.tracker.keys() or tree[t] > self.tracker.get(t)[1]:
-                d = await self.data.get(t)
-                if d:
-                    print('downloading', t)
-                    with open(self.ktf(t), 'wb') as f:
-                        data = await self.data.get(t)
-                        f.write(data if isinstance(data, bytes) else str(data).encode())
-                    self.tracker.set(t, (os.path.getmtime(self.ktf(t)), tree[t], False))
-                elif await self.data.list(t):
-                    if not os.path.exists(self.ktf(t)):
-                        print('making dir', t)
-                        os.mkdir(self.ktf(t))
+    async def sync(self, download=True):
+        if download:
+            tree = await self.data.tree(())
+            files = glob(os.path.join(self.target_dir, '**'), recursive=True)
+            for t in tree:
+                if t not in self.tracker.keys() or tree[t] > self.tracker.get(t)[1]:
+                    d = await self.data.get(t)
+                    if d:
+                        print('downloading', t)
+                        with open(self.ktf(t), 'wb') as f:
+                            data = await self.data.get(t)
+                            f.write(data if isinstance(data, bytes) else str(data).encode())
                         self.tracker.set(t, (os.path.getmtime(self.ktf(t)), tree[t], False))
+                    elif await self.data.list(t):
+                        if not os.path.exists(self.ktf(t)):
+                            print('making dir', t)
+                            os.mkdir(self.ktf(t))
+                            self.tracker.set(t, (os.path.getmtime(self.ktf(t)), tree[t], False))
 
         files = glob(os.path.join(self.target_dir, '**'), recursive=True)
 
@@ -53,18 +54,19 @@ class FileSync:
                 self.tracker.set(self.ftk(f), (mt, ts, False))
         tree = await self.data.tree(())
 
-        for k in self.tracker.keys():
-            if k not in tree and not self.tracker.get(k)[2]:
-                print('deleting (down)', k)
-                ts = await self.data.list_versions(k)[-1]
-                self.tracker.set(k, (time.time(), ts, True))
-                if os.path.exists(self.ktf(k)):
-                    if os.path.isdir(self.ktf(k)):
-                        shutil.rmtree(self.ktf(k))
-                    else:
-                        os.remove(self.ktf(k))
+        if download: # not delete anything if not downloading stuff, just in case
+            for k in self.tracker.keys():
+                if k not in tree and not self.tracker.get(k)[2]:
+                    print('deleting (down)', k)
+                    ts = await self.data.list_versions(k)[-1]
+                    self.tracker.set(k, (time.time(), ts, True))
+                    if os.path.exists(self.ktf(k)):
+                        if os.path.isdir(self.ktf(k)):
+                            shutil.rmtree(self.ktf(k))
+                        else:
+                            os.remove(self.ktf(k))
 
-            if self.ktf(k) not in files and not self.tracker.get(k)[2]:
-                print('deleting (up)', k)
-                ts = await self.data.remove(k)
-                self.tracker.set(k, (ts, ts, True))
+                if self.ktf(k) not in files and not self.tracker.get(k)[2]:
+                    print('deleting (up)', k)
+                    ts = await self.data.remove(k)
+                    self.tracker.set(k, (ts, ts, True))
