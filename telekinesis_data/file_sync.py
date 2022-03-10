@@ -18,7 +18,7 @@ class FileSync:
     async def keep_sync(self):
         while True:
             await self.sync()
-            await asyncio.sleep(5)
+            await asyncio.sleep(10)
 
     async def sync(self):
         tree = await self.data.tree(())
