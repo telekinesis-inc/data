@@ -9,6 +9,7 @@ class FileSync:
     def __init__(self, data_branch, target_dir, support_dir):
         self.data = data_branch
         self.target_dir = target_dir
+        self.support_dir = support_dir
         self.tracker = SimpleKV(support_dir)
         self.task = asyncio.create_task(self.keep_sync())
         
