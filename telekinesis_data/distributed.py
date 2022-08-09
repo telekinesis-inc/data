@@ -4,6 +4,7 @@ import math
 import base64
 import hashlib
 import asyncio
+from collections import deque
 
 import bson
 import telekinesis as tk
@@ -27,6 +28,7 @@ class TelekinesisData:
 
         self._default_branch_id = None
         self._branches = {}#Container(os.path.join(path, 'branches'))
+        self._queues = {}
         
         self.client = tk.Telekinesis(self, session)
         self._peers = {self.id: self.client}
@@ -240,6 +242,38 @@ class TelekinesisData:
                         return peer.remove(key, branch)
                     else:
                         self._registry.set((branch_id, *k), None)
+
+    @tk.inject_first_arg
+    async def update_value(self, context, key, update_lambda, timeout=0.5, branch=None):
+        _, branch_id, branch = await self._overhead(context, branch)
+
+        for i in range(0, len(key)+1):
+            k = key[:-i] or (i == 0 and key) or ()
+            if owner_id := self._registry.get((branch_id, *k)):
+                if owner_id == self.id:
+                    if i == 0:
+                        lock = asyncio.Event()
+                        if self._queues.get(key):
+                            self._queues[key].append(lock)
+                            await self._queues.get(key)[-2].wait()
+                        else:
+                            self._queues[key] = deque([lock])
+
+                        previous_value = await self.get(context, key, branch=branch)
+                        try:
+                            new_value = await update_lambda(previous_value)._timeout(timeout)
+                            return await self.set(context, key, new_value)
+                        finally:
+                            self._queues[key].popleft()
+                            lock.set()
+                    else:
+                        raise FileNotFoundError
+                else:
+                    if peer := self._peers.get(owner_id):
+                        return peer.update_value(key, changes, condition, branch)
+                    else:
+                        self._registry.set((branch_id, *k), None)
+
 
 
     @tk.inject_first_arg
@@ -506,6 +540,14 @@ class Branch:
     async def update(self, context, key, changes, condition=None, branch=None):
         peer_id, _, _ = await self._parent._overhead(context, None)
         out = self._parent.update(context, self._root + tuple(key), changes, condition, branch or self._branch_id)
+        if peer_id:
+            return out
+        return await out
+
+    @tk.inject_first_arg
+    async def update_value(self, context, key, update_lambda, timeout, branch=None):
+        peer_id, _, _ = await self._parent._overhead(context, None)
+        out = self._parent.update_value(context, self._root + tuple(key), update_lambda, timeout, branch or self._branch_id)
         if peer_id:
             return out
         return await out
