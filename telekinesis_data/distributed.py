@@ -261,7 +261,11 @@ class TelekinesisData:
 
                         previous_value = await self.get(context, key, branch=branch)
                         try:
-                            new_value = await update_lambda(previous_value)._timeout(timeout)
+                            if '_timeout' in dir(update_lambda):
+                                new_value = await update_lambda(previous_value)._timeout(timeout)
+                            else:
+                                new_value = await asyncio.wait_for(update_lambda(previous_value), timeout)
+
                             return await self.set(context, key, new_value)
                         finally:
                             self._queues[key].popleft()
