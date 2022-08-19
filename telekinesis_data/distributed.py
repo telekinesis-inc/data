@@ -266,7 +266,8 @@ class TelekinesisData:
                             else:
                                 new_value = await asyncio.wait_for(update_lambda(previous_value), timeout)
 
-                            return await self.set(context, key, new_value)
+                            await self.set(context, key, new_value)
+                            return new_value
                         finally:
                             self._queues[key].popleft()
                             lock.set()
