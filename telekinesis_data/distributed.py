@@ -77,6 +77,7 @@ class TelekinesisData:
                             self._registry.set((branch_id, *key), self.id)
                             timestamp = self._local.set((branch_id, *key), [
                                 ('u' if clear else 'uu', {'metadata': metadata or {}}),
+                                ('l', None),
                                 ('u', {'value': value_hash} if value is not None or clear else {})
                             ])
                             if value is not None or clear and value_hash not in self._data:
@@ -226,9 +227,18 @@ class TelekinesisData:
                     self._registry.set((branch_id, *k), None)
                 if owner_id == self.id:
                     if i == 0:
-                        timestamp = self._local.set((branch_id, *k), [
-                            ('u', {'value': None})
-                        ])
+
+                        children = (self._local.get((branch_id, *k)) or {}).get('children') or []
+
+                        for child in children:
+                            await self.remove(context, (*key, child), branch)
+
+                        timestamp = await self.set(context, key, None, {}, True, branch=branch)
+                        # timestamp = self._local.set((branch_id, *k), [
+                        #     ('u', {'value': None}),
+                        #     ('u', {'metadata': {}}),
+                        #     # ('u', {'children': []})
+                        # ])
                         if len(key) == 0:
                             return timestamp
                     if i == 1:

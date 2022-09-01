@@ -46,6 +46,8 @@ class TimetravelerKV:
                     if mode == 'u':
                         value = value or {}
                         value.update(val)
+                    if mode == 'l':
+                        value = value or []
                     if mode == 'a':
                         value = value or []
                         value.append(val)
