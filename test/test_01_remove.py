@@ -42,3 +42,9 @@ async def test_remove(tmp_path):
     await d1.remove(('x',))
 
     assert len(await d0.list(())) == 0
+
+    await d1.set(('x',), 2)
+
+    assert await d0.get(('x',)) == 2
+
+    assert len(await d0.list(())) == 1

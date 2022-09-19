@@ -218,13 +218,14 @@ class TelekinesisData:
     @tk.inject_first_arg
     async def remove(self, context, key, branch=None):
         peer_id, branch_id, branch = await self._overhead(context, branch)
+        print(peer_id, key)
 
         for i in range(0, len(key)+1):
             k = key[:-i] or (i == 0 and key) or ()
             ck = key[:-(i or 1)+1] or key
+            print('for', i, k, ck)
             if owner_id := self._registry.get((branch_id, *k)):
-                # if i == 0:
-                #     self._registry.set((branch_id, *k), None)
+                print('if', k, owner_id)
                 if owner_id == self.id:
                     if i == 0:
 
@@ -233,6 +234,7 @@ class TelekinesisData:
                         await asyncio.gather(*[self.remove(context, (*key, child), branch) for child in children])
 
                         timestamp = await self.set(context, key, None, {}, True, branch=branch)
+                        self._registry.set((branch_id, *k), None)
                         # timestamp = self._local.set((branch_id, *k), [
                         #     ('u', {'value': None}),
                         #     ('u', {'metadata': {}}),
@@ -241,12 +243,14 @@ class TelekinesisData:
                         if len(key) == 0:
                             return timestamp
                     if i == 1:
-                        # self._registry.set((branch_id, *ck), None)
                         timestamp = self._local.set((branch_id, *k), [
                             ('ur', {'children': ck[-1]})
                         ])
                         return timestamp
                 else:
+                    if i == 0:
+                        self._registry.set((branch_id, *k), None)
+                    print(peer_id, owner_id)
                     if peer := self._peers.get(owner_id):
                         if peer_id != owner_id:
                             return peer.remove(key, branch)
