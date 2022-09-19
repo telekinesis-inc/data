@@ -217,21 +217,20 @@ class TelekinesisData:
 
     @tk.inject_first_arg
     async def remove(self, context, key, branch=None):
-        _, branch_id, branch = await self._overhead(context, branch)
+        peer_id, branch_id, branch = await self._overhead(context, branch)
 
         for i in range(0, len(key)+1):
             k = key[:-i] or (i == 0 and key) or ()
             ck = key[:-(i or 1)+1] or key
             if owner_id := self._registry.get((branch_id, *k)):
-                if i == 0:
-                    self._registry.set((branch_id, *k), None)
+                # if i == 0:
+                #     self._registry.set((branch_id, *k), None)
                 if owner_id == self.id:
                     if i == 0:
 
                         children = (self._local.get((branch_id, *k)) or {}).get('children') or []
 
-                        for child in children:
-                            await self.remove(context, (*key, child), branch)
+                        await asyncio.gather(*[self.remove(context, (*key, child), branch) for child in children])
 
                         timestamp = await self.set(context, key, None, {}, True, branch=branch)
                         # timestamp = self._local.set((branch_id, *k), [
@@ -242,14 +241,15 @@ class TelekinesisData:
                         if len(key) == 0:
                             return timestamp
                     if i == 1:
-                        self._registry.set((branch_id, *ck), None)
+                        # self._registry.set((branch_id, *ck), None)
                         timestamp = self._local.set((branch_id, *k), [
                             ('ur', {'children': ck[-1]})
                         ])
                         return timestamp
                 else:
                     if peer := self._peers.get(owner_id):
-                        return peer.remove(key, branch)
+                        if peer_id != owner_id:
+                            return peer.remove(key, branch)
                     else:
                         self._registry.set((branch_id, *k), None)
 
@@ -288,8 +288,6 @@ class TelekinesisData:
                         return peer.update_value(key, changes, condition, branch)
                     else:
                         self._registry.set((branch_id, *k), None)
-
-
 
     @tk.inject_first_arg
     async def update(self, context, key, changes, condition=None, branch=None):
