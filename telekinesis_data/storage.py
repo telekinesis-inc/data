@@ -7,7 +7,7 @@ import os
 class SimpleFileContainer:
     def __init__(self, path):
         self._path = path
-        self._keys = Item(os.path.join(path, 'plainkeys'))
+        self._keys = Stream(os.path.join(path, 'plainkeys'))
         if not os.path.exists(path):
             os.makedirs(path)
         
@@ -26,7 +26,7 @@ class SimpleFileContainer:
     
 class SimpleKV:
     def __init__(self, path):
-        self._keyencs = Item(os.path.join(path, 'keys'))
+        self._keyencs = Stream(os.path.join(path, 'keys'))
         self._data = SimpleFileContainer(path)
     def set(self, key, value):
         if not isinstance(key, str):
@@ -50,12 +50,12 @@ class SimpleKV:
         
     def _hash(self, data):
         return base64.b64encode(hashlib.blake2s(data).digest(), b'_-')[:-1].decode()
-    
-class Container:
+
+class SimpleKVContainer:
     def __init__(self, path):
         self._path = path
         self._data = {}
-        self._keyencs = Item(os.path.join(path, 'keys'))
+        self._keyencs = Stream(os.path.join(path, 'keys1'))
         if not os.path.exists(path):
             os.makedirs(path)
 
@@ -67,9 +67,36 @@ class Container:
         
         if item := self._data.get(keyenc):
             return item
-        item = Item(os.path.join(self._path, keyenc))
+
+        item = SimpleKV(os.path.join(self._path, keyenc))
         self._keyencs.update({keyenc: key})
         self._data[keyenc] = item
+        return item
+    
+    def keys(self):
+        return list(tuple(v) for _, v in self._keyencs)
+        
+    def _hash(self, data):
+        return base64.b64encode(hashlib.blake2s(data).digest(), b'_-')[:-1].decode()
+class StreamContainer:
+    def __init__(self, path):
+        self._path = path
+        # self._data = {}
+        self._keyencs = Stream(os.path.join(path, 'keys'))
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+    def get(self, key, offset=0):
+        if not isinstance(key, str):
+            keyenc = self._hash(ujson.dumps(key, escape_forward_slashes=False).encode())
+        else:
+            keyenc = key
+        
+        # if item := self._data.get(keyenc):
+        #     return item
+        item = Stream(os.path.join(self._path, keyenc), offset)
+        self._keyencs.update({keyenc: key})
+        # self._data[keyenc] = item
         return item
     
     def keys(self):
@@ -78,17 +105,27 @@ class Container:
     def _hash(self, data):
         return base64.b64encode(hashlib.blake2s(data).digest(), b'_-')[:-1].decode()
 
-class Item:
-    def __init__(self, path):
+class Stream:
+    def __init__(self, path, offset=0):
         self._path = path
+        self._offset = offset
+        # print('', offset)
 
     def update(self, data):
-        with open(self._path, 'a') as f:
+        path = self._path + (f'_{self._offset}' if self._offset else '')
+        # print(path)
+        with open(path, 'a') as f:
             for k, v in data.items():
                 f.write(ujson.dumps([k, v], escape_forward_slashes=False) + '\n')
+        return os.path.getsize(path)
     
+    def _open_file(self):
+        path = self._path + (f'_{self._offset}' if self._offset else '')
+        self._file = os.path.exists(path) and open(path, 'r')
+        return self
+
     def __iter__(self):
-        self._file = os.path.exists(self._path) and open(self._path, 'r')
+        self._open_file()
         return self
 
     def __next__(self):
@@ -96,5 +133,10 @@ class Item:
             return tuple(ujson.loads(content))
         else:
             self._file and self._file.close()
+            self._offset += 1
+            self._open_file()
+            if content := self._file and self._file.readline():
+                return tuple(ujson.loads(content))
+            self._offset -= 1
             raise StopIteration
         

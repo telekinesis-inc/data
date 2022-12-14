@@ -148,13 +148,19 @@ class TelekinesisData:
 
     @tk.inject_first_arg
     async def get(self, context, key, metadata=False, timestamp=None, branch=None):
+        # t0 = time.time()
         is_peer, branch_id, branch = await self._overhead(context, branch)
 
+        # print('start', t0, time.time()-t0)
         for i in range(len(key)+1):
             k = key[:-i] or (i==0 and key) or ()
+            # print('if owner in registry?', time.time()-t0)
             if owner_id := self._registry.get((branch_id, *k)):
+                # print('if owner is self?', time.time()-t0)
                 if owner_id == self.id:
-                    if self._local.list_versions((branch_id, *key), timestamp, ['origin']):
+                    # print('if local list_versions', time.time()-t0)
+                    if self._local.list_versions((branch_id, *key), timestamp):#, ['origin']):
+                        # print('getting obj metadata', time.time()-t0)
                         obj = self._local.get((branch_id, *key), timestamp) or {}
                         if metadata:
                             out = obj.get('metadata')
@@ -218,14 +224,14 @@ class TelekinesisData:
     @tk.inject_first_arg
     async def remove(self, context, key, branch=None):
         peer_id, branch_id, branch = await self._overhead(context, branch)
-        print(peer_id, key)
+        # print(peer_id, key)
 
         for i in range(0, len(key)+1):
             k = key[:-i] or (i == 0 and key) or ()
             ck = key[:-(i or 1)+1] or key
-            print('for', i, k, ck)
+            # print('for', i, k, ck)
             if owner_id := self._registry.get((branch_id, *k)):
-                print('if', k, owner_id)
+                # print('if', k, owner_id)
                 if owner_id == self.id:
                     if i == 0:
 
@@ -250,7 +256,7 @@ class TelekinesisData:
                 else:
                     if i == 0:
                         self._registry.set((branch_id, *k), None)
-                    print(peer_id, owner_id)
+                    # print(peer_id, owner_id)
                     if peer := self._peers.get(owner_id):
                         if peer_id != owner_id:
                             return peer.remove(key, branch)
@@ -289,7 +295,7 @@ class TelekinesisData:
                         raise FileNotFoundError
                 else:
                     if peer := self._peers.get(owner_id):
-                        return peer.update_value(key, changes, condition, branch)
+                        return peer.update_value(key, update_lambda, timeout, branch)
                     else:
                         self._registry.set((branch_id, *k), None)
 
@@ -308,13 +314,13 @@ class TelekinesisData:
                             self._local.set((branch_id, *k), [
                                 ('uu'+c, {
                                     'metadata': {
-                                        k: eval(vv if isinstance(vv, str) else vv[0], {**globals_obj, **({} if isinstance(vv, str) else vv[1])}) 
-                                            for k, vv in v.items()
+                                        kk: eval(vv if isinstance(vv, str) else vv[0], {**globals_obj, **({} if isinstance(vv, str) else vv[1])}) 
+                                            for kk, vv in v.items()
                                     }}) for c, v in changes
                             ])
                             return self._local.get((branch_id, *k))['metadata']
                         else:
-                            raise ConditionNotFulfilled(f"Condition '{condition[0]}' not fullfiled")
+                            raise ConditionNotFulfilled(f"Condition '{condition[0]}' not fulfilled")
                     else:
                         raise FileNotFoundError
                 else:

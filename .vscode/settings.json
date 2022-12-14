@@ -2,6 +2,7 @@
   "python.pythonPath": "/home/j/miniconda3/envs/test/bin/python",
   "cSpell.words": [
     "timetravel",
-    "Timetraveler"
+    "Timetraveler",
+    "ujson"
   ]
 }
