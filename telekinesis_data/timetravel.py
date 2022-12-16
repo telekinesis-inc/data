@@ -43,7 +43,7 @@ class TimetravelerKV:
         checkpoints = self.checkpoints.get(key)
         # print(time.time()- timestamp)
         
-        checkpoints_timestamps_tuples = [t for t in checkpoints.keys() if t[0] <= timestamp]
+        checkpoint_timestamps = sorted([t for t, in checkpoints.keys() if t <= timestamp])
         # print(time.time()- timestamp)
 
 
@@ -51,10 +51,10 @@ class TimetravelerKV:
         # if checkpoints or not origin_tuple:
         # last_checkpoint_timestamp = (sorted(c for c in checkpoints if c <= timestamp) or [0])[-1]
         # value = last_checkpoint_timestamp and checkpoints[last_checkpoint_timestamp] or None
-        if checkpoints_timestamps_tuples:
-            value = ujson.loads(checkpoints.get(checkpoints_timestamps_tuples[-1]).decode())[1]
-            offset = len(checkpoints_timestamps_tuples)
-            last_checkpoint_timestamp = checkpoints_timestamps_tuples[-1][0]
+        if checkpoint_timestamps:
+            value = ujson.loads(checkpoints.get((checkpoint_timestamps[-1],)).decode())[1]
+            offset = len(checkpoint_timestamps)
+            last_checkpoint_timestamp = checkpoint_timestamps[-1]
         else:
             value = None
             offset = 0
@@ -157,7 +157,8 @@ class TimetravelerKV:
         size = log.update({timestamp: changes})
 
         if size > 1_000_000:
-            self.checkpoints.get(key).set((timestamp,), ujson.dumps([self.list_versions(key), self.get(key)]).encode())
+            checkpoint = self.get(key)
+            self.checkpoints.get(key).set((timestamp,), ujson.dumps([self.list_versions(key), checkpoint]).encode())
 
         return timestamp
         # self.log[key] = log
