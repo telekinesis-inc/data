@@ -376,7 +376,7 @@ class TelekinesisData:
             k = key[:-i] or (i==0 and key) or ()
             if owner_id := self._registry.get((branch_id, *k)):
                 if owner_id == self.id:
-                    return self._local.list_versions((branch_id, *key), timestamp, ['origin'])
+                    return self._local.list_versions((branch_id, *key), timestamp)
                 else:
                     if owner := self._peers.get(owner_id):
                         # if is_peer:
