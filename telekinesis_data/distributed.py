@@ -77,7 +77,7 @@ class TelekinesisData:
                             self._registry.set((branch_id, *key), self.id)
                             timestamp = self._local.set((branch_id, *key), [
                                 ('u' if clear else 'uu', {'metadata': metadata or {}}),
-                                ('l', None),
+                                # ('l', None),
                                 ('u', {'value': value_hash} if value is not None or clear else {})
                             ])
                             if value is not None or clear and value_hash not in self._data:
