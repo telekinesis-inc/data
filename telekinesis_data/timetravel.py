@@ -70,81 +70,8 @@ class TimetravelerKV:
         changes = self.log.get(key, offset)
         for t, change in changes:
             if last_checkpoint_timestamp < t <= timestamp:
-                for mode, val in change:
-                    if mode == 'd':
-                        value = None
-                    if mode == 'r':
-                        value = val
-                    if mode == 'u':
-                        value = value or {}
-                        value.update(val)
-                    if mode == 'l':
-                        value = value or []
-                    if mode == 'a':
-                        value = value or []
-                        value.append(val)
-                    if mode == 'ua':
-                        value = value or {}
-                        attr = list(val.keys())[0]
-                        value.update({attr: (value.get(attr) or []) + [val[attr]]})
-                    if mode == 'ur':
-                        value = value or {}
-                        attr = list(val.keys())[0]
-                        subval = value.get(attr) or []
-                        if val[attr] in subval:
-                            subval.remove(val[attr])
-                        value.update({attr: subval})
-                    if mode == 'uu':
-                        value = value or {}
-                        for attr in val:
-                            subvalue = value.get(attr, {})
-                            subval = val[attr]
-                            for subattr in subval:
-                                new_value = subval[subattr]
-                                subvalue.update({subattr: new_value})
-                            value.update({attr: subvalue})
-                    if mode == 'uuu':
-                        value = value or {}
-                        for attr in val:
-                            subvalue = value.get(attr, {})
-                            subval = val[attr]
-                            for subattr in subval:
-                                subsubvalue = subvalue.get(subattr, {})
-                                subsubval = subval[subattr]
-                                for subsubattr in subsubval:
-                                    subsubvalue.update({subsubattr: subsubval[subsubattr]})
-                                subvalue.update({subattr: subsubvalue})
-                            value.update({attr: subvalue})
-                    if mode == 'uup':
-                        value = value or {}
-                        for attr in val:
-                            subvalue = value.get(attr, {})
-                            subval = val[attr]
-                            for subattr in subval:
-                                subsubvalue = subvalue.get(subattr, {})
-                                subsubval = subval[subattr]
-                                for subsubattr in subsubval:
-                                    subsubvalue.pop(subsubattr, None)
-                                subvalue.update({subattr: subsubvalue})
-                            value.update({attr: subvalue})
-                    if mode == 'uu+':
-                        value = value or {}
-                        for attr in val:
-                            subvalue = value.get(attr, {})
-                            subval = val[attr]
-                            for subattr in subval:
-                                new_value = subvalue.get(subattr, 0) + subval[subattr]
-                                subvalue.update({subattr: new_value})
-                            value.update({attr: subvalue})
-                    if mode == 'uu0':
-                        value = value or {}
-                        for attr in val:
-                            subvalue = value.get(attr, {})
-                            subval = val[attr]
-                            for subattr in subval:
-                                new_value = 0
-                                subvalue.update({subattr: new_value})
-                            value.update({attr: subvalue})
+                for mode, diff in change:
+                    value = self._recursive_update(mode, value, diff)
         # print(time.time()- timestamp)
         return value
                 
@@ -169,3 +96,38 @@ class TimetravelerKV:
         # if len([t for t in checkpoints if t > last_checkpoint_timestamp]) > 100:
         #     checkpoints.update({timestamp: value})
         #     self.checkpoints[key] = checkpoints
+    
+    def _recursive_update(self, mode, old_value, diff):
+        if mode[0] == 'u':
+            value = old_value or {}
+            if len(mode) > 1:
+                diff = {key: self._recursive_update(mode[1:], value.get(key), sub_diff) 
+                        for key, sub_diff in diff.items()}
+            value.update(diff)
+        elif mode[0] == 'r':
+            value = diff
+        elif mode[0] == '+':
+            value = (old_value or 0) + diff
+        elif mode[0] == 'l':
+            value = old_value or []
+        elif mode[0] == 'a':
+            value = old_value or []
+            value.append(diff)
+        elif mode[0] == 'e':
+            value = old_value or []
+            value.extend(diff)
+        elif mode[0] == 'm':
+            value = old_value or []
+            for key in diff:
+                if key in value:
+                    value.remove(key)
+        elif mode[0] == 'p':
+            value = old_value or {}
+            for key in diff:
+                if key in value:
+                    value.pop(key, None)
+        else:
+            raise Exception('update mode', mode, 'not implemented')
+            
+        return value
+
