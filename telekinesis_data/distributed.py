@@ -312,7 +312,7 @@ class TelekinesisData:
                         globals_obj = {**self._local.get((branch_id, *k)).get('metadata', {}), 'math': math, 'time': time}
                         if not condition or eval(condition[0], {**globals_obj, **condition[1]}):
                             self._local.set((branch_id, *k), [
-                                ('uu'+c, {
+                                ('u'+c, {
                                     'metadata': {
                                         kk: eval(vv if isinstance(vv, str) else vv[0], {**globals_obj, **({} if isinstance(vv, str) else vv[1])}) 
                                             for kk, vv in v.items()
