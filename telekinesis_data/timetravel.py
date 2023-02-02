@@ -118,9 +118,8 @@ class TimetravelerKV:
             value.extend(diff)
         elif mode[0] == 'm':
             value = old_value or []
-            for key in diff:
-                if key in value:
-                    value.remove(key)
+            if diff in value:
+                value.remove(diff)
         elif mode[0] == 'p':
             value = old_value or {}
             for key in diff:
